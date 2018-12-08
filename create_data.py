@@ -2,8 +2,7 @@
 import cv2
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import OneHotEncoder
+import pickle
 import os
 
 # directories of training data
@@ -27,37 +26,36 @@ def preprocess(image):
 
 if __name__ == "__main__":
 
-    # initialize encoders
-    name_to_integet_encoder = LabelEncoder()
-    integer_to_one_hot_encoder = OneHotEncoder()
     # read csv of training data
     whales_data = pd.read_csv(CSV_PATH)
     # extract labels (which are names of the whales)
     labels = list(whales_data['Id'])
+    integer_labels = range(len(list(set(labels))))
+    labels_integers_map = dict(zip(list(set(labels)), integer_labels))
     # get image name
     images_name = list(whales_data['Image'])
-    # convert label name to integer
-    name_to_integet_encoder.fit(labels)
-    labels_integers = name_to_integet_encoder.transform(labels)
-    # convert integers to one hot
-    integer_to_one_hot_encoder.fit(np.array(labels_integers).reshape(-1, 1))
-    labels_one_hot = integer_to_one_hot_encoder.transform(np.array(labels_integers).reshape([-1, 1])).toarray()
 
     # read images and create dataset
     images = []
+    labels_integers = []
     for i in range(len(labels)):
-        label_one_hot = labels_one_hot[i]
+        # convert labels to onehot vector
+        label_name = labels[i]
+        label_integer = labels_integers_map[label_name]
         image_id = images_name[i]
         filename = IMAGES_PATH + '/' + image_id
         image = cv2.imread(filename, 0)
         image = preprocess(image)
         images.append(image)
+        labels_integers.append(label_integer)
         print(filename)
         print('Number of Enteries: {}'.format(i))
         print('---------------------------------')
 
     print('Saving Data ...')
     # save data as numpy arrays
-    np.save('data/labels.npy', np.array(labels_one_hot))
+    np.save('data/labels.npy', np.array(labels_integers))
     np.save('data/images.npy', np.array(images))
+    with open('data/'+ 'name_to_integer_map' + '.pkl', 'wb') as f:
+        pickle.dump(labels_integers_map, f, pickle.HIGHEST_PROTOCOL)
     print('Processing Completed')
