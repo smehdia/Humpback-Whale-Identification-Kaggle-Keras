@@ -6,8 +6,8 @@ import pickle
 import os
 
 # directories of training data
-IMAGES_PATH = '/home/mehdi/Desktop/Kaggle/Whale/train'
-CSV_PATH = '/home/mehdi/Desktop/Kaggle/Whale/train.csv'
+IMAGES_PATH = '/home/desktop/Desktop/Whale_Kaggle/Detection/keras-retinanet-master/build/lib.linux-x86_64-2.7/train_cropped'
+CSV_PATH = '/home/desktop/Desktop/Whale_Kaggle/Classification/train.csv'
 IMG_WIDTH = 128
 IMG_HEIGHT = 64
 
@@ -39,18 +39,21 @@ if __name__ == "__main__":
     images = []
     labels_integers = []
     for i in range(len(labels)):
-        # convert labels to onehot vector
-        label_name = labels[i]
-        label_integer = labels_integers_map[label_name]
-        image_id = images_name[i]
-        filename = IMAGES_PATH + '/' + image_id
-        image = cv2.imread(filename, 0)
-        image = preprocess(image)
-        images.append(image)
-        labels_integers.append(label_integer)
-        print(filename)
-        print('Number of Enteries: {}'.format(i))
-        print('---------------------------------')
+        try:
+            image_id = images_name[i]
+            filename = IMAGES_PATH + '/' + image_id
+            image = cv2.imread(filename, 0)
+            image = preprocess(image)
+            images.append(image)
+            # convert labels to onehot vector
+            label_name = labels[i]
+            label_integer = labels_integers_map[label_name]
+            labels_integers.append(label_integer)
+            print(filename)
+            print('Number of Enteries: {}'.format(i))
+            print('---------------------------------')
+        except:
+            pass
 
     print('Saving Data ...')
     # save data as numpy arrays
