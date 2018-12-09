@@ -108,6 +108,7 @@ def prepare_batch(X, y, indices_for_training):
 
     return np.array(X_batch), np.array(y_batch), indices_for_training
 
+
 if __name__ == "__main__":
 
     siamese_net = build_siamese_model(num_base_filters=16, alpha_leaky_relu=0.1, rg=1e-4, num_elements_of_vector=1000)
@@ -118,6 +119,7 @@ if __name__ == "__main__":
 
     total_binary_loss = []
     total_mse_loss = []
+    test_accuracy = []
     for epoch in range(MAX_EPOCHS):
         indices_for_training = range(X_train.shape[0])
         for iteration in range(MAX_ITERATIONS):
@@ -129,8 +131,46 @@ if __name__ == "__main__":
                 total_mse_loss.extend([total_mse_loss])
                 print binary_loss
                 plt.plot(total_binary_loss)
+                plt.title('Binary Crossentropy')
                 plt.savefig('loss.png')
                 plt.close()
+
+        print 'Testing Network'
+        number_correct = 0
+        for i in range(X_test.shape[0]):
+            img_test = X_test[i].astype('float32').reshape([IMG_HEIGHT, IMG_WIDTH, 1]) / 255.
+            final_output = [0] * np.unique(y_train).shape[0]
+            for j in range(np.unique(y_train).shape[0]):
+                indices = np.where(y_train == j)[0]
+                first_index = indices[0]
+                input_net = [[img_test], [X_train[first_index].astype('float32').reshape([IMG_HEIGHT, IMG_WIDTH, 1]) / 255.]]
+                model_prediction = siamese_net.predict(input_net)[0][0]
+                final_output[j] += round(model_prediction, 3)
+
+            print('Next Test Case ...')
+            if final_output.index(min(final_output)) == y_test[i]:
+                number_correct += 1
+
+        test_accuracy.extend([round(number_correct/float(X_test.shape[0]), 2)])
+        plt.plot(total_binary_loss)
+        plt.title('Test Accuracy')
+        plt.savefig('test_accuracy.png')
+        plt.close()
+        print 'Test Accuracy is: ' + str(round(number_correct/float(X_test.shape[0]), 2))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
