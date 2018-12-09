@@ -7,24 +7,25 @@ import shutil
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 '''
 define constant parameters and hyper parameters here
 '''
 # general parameters
-IMG_WIDTH = 32
-IMG_HEIGHT = 16
+IMG_WIDTH = 128
+IMG_HEIGHT = 64
 NUM_CHANNELS = 1
 # network parameters
-NUM_BASE_FILTERS = 16
-REGULARIZATION_PARAM = 1e-3
+NUM_BASE_FILTERS = 32
+REGULARIZATION_PARAM = 1e-5
 DROPOUT = 0.25
 ALPHA_LEAKY_RELU = 0.2
-NUM_DENSE = 64
+NUM_DENSE = 1000
 # training options
-BATCH_SIZE = 64
-LEARNING_RATE = 1e-4
-MAX_ITERATIONS = 100000
+BATCH_SIZE = 32
+LEARNING_RATE = 1e-5
+MAX_ITERATIONS = 10000
 MAX_EPOCHS = 1000
 # remove logs from previous runs
 try:
@@ -37,25 +38,31 @@ except:
 def build_siamese_model(num_base_filters, alpha_leaky_relu, rg, num_elements_of_vector):
     
     input_image = Input(shape=(IMG_HEIGHT, IMG_WIDTH, 1))
-    x = Conv2D(filters=num_base_filters, kernel_size=(5, 5), kernel_regularizer=regularizers.l2(rg),
+    x = Conv2D(filters=num_base_filters, kernel_size=(7, 7), kernel_regularizer=regularizers.l2(rg),
                name='first_layer')(input_image)
     x = BatchNormalization()(x)
     x = LeakyReLU(alpha_leaky_relu)(x)
-    #x = MaxPooling2D((2, 2))(x)
+    x = MaxPooling2D((1, 2))(x)
 
-    x = Conv2D(filters=2 * num_base_filters, kernel_size=(3, 3), kernel_regularizer=regularizers.l2(rg))(x)
+    x = Conv2D(filters=2 * num_base_filters, kernel_size=(5, 5), kernel_regularizer=regularizers.l2(rg))(x)
     x = BatchNormalization()(x)
     x = LeakyReLU(alpha_leaky_relu)(x)
-    #x = MaxPooling2D((2, 2))(x)
+    x = MaxPooling2D((2, 2))(x)
 
     x = Conv2D(filters=4 * num_base_filters, kernel_size=(3, 3), kernel_regularizer=regularizers.l2(rg))(x)
     x = BatchNormalization()(x)
     x = LeakyReLU(alpha_leaky_relu)(x)
-    #x = MaxPooling2D((2, 2))(x)
+    x = MaxPooling2D((2, 2))(x)
 
     x = Conv2D(filters=8 * num_base_filters, kernel_size=(3, 3), kernel_regularizer=regularizers.l2(rg))(x)
     x = BatchNormalization()(x)
     x = LeakyReLU(alpha_leaky_relu)(x)
+
+    x = Conv2D(filters=8 * num_base_filters, kernel_size=(3, 3), kernel_regularizer=regularizers.l2(rg))(x)
+    x = BatchNormalization()(x)
+    x = LeakyReLU(alpha_leaky_relu)(x)
+
+    x = MaxPooling2D((2, 2))(x)
 
     x = Flatten()(x)
 
@@ -74,6 +81,7 @@ def build_siamese_model(num_base_filters, alpha_leaky_relu, rg, num_elements_of_
     prediction = Dense(1, activation='sigmoid')(L1_distance)
     siamese_net = Model(input=[input_image_siamese1, input_image_siamese2], output=prediction)
 
+    conv_model.summary()
     siamese_net.summary()
 
     return siamese_net
@@ -111,7 +119,7 @@ def prepare_batch(X, y, indices_for_training):
 
 if __name__ == "__main__":
 
-    siamese_net = build_siamese_model(num_base_filters=16, alpha_leaky_relu=0.1, rg=1e-4, num_elements_of_vector=1000)
+    siamese_net = build_siamese_model(num_base_filters=NUM_BASE_FILTERS, alpha_leaky_relu=ALPHA_LEAKY_RELU, rg=REGULARIZATION_PARAM, num_elements_of_vector=NUM_DENSE)
     rms = RMSprop(LEARNING_RATE)
     siamese_net.compile(loss='binary_crossentropy', optimizer=rms, metrics=['mse'])
 
@@ -121,19 +129,21 @@ if __name__ == "__main__":
     total_mse_loss = []
     test_accuracy = []
     for epoch in range(MAX_EPOCHS):
+        print '----------------  Epoch {}  ----------------'.format(epoch)
         indices_for_training = range(X_train.shape[0])
-        for iteration in range(MAX_ITERATIONS):
+        for iteration in tqdm(range(MAX_ITERATIONS)):
             if len(indices_for_training) > BATCH_SIZE:
                 X_batch, y_batch, indices_for_training  = prepare_batch(X_train, y_train, indices_for_training)
 
                 binary_loss, mse = siamese_net.train_on_batch([X_batch[:,0], X_batch[:,1]], y_batch)
                 total_binary_loss.extend([binary_loss])
                 total_mse_loss.extend([total_mse_loss])
-                print binary_loss
                 plt.plot(total_binary_loss)
                 plt.title('Binary Crossentropy')
                 plt.savefig('loss.png')
                 plt.close()
+
+        siamese_net.save_weights('model.h5')
 
         print 'Testing Network'
         number_correct = 0
@@ -146,6 +156,7 @@ if __name__ == "__main__":
                 input_net = [[img_test], [X_train[first_index].astype('float32').reshape([IMG_HEIGHT, IMG_WIDTH, 1]) / 255.]]
                 model_prediction = siamese_net.predict(input_net)[0][0]
                 final_output[j] += round(model_prediction, 3)
+
 
             print('Next Test Case ...')
             if final_output.index(min(final_output)) == y_test[i]:
