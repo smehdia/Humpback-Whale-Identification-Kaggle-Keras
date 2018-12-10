@@ -25,7 +25,7 @@ NUM_DENSE = 1000
 # training options
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-5
-MAX_ITERATIONS = 10000
+MAX_ITERATIONS = 25000
 MAX_EPOCHS = 1000
 # remove logs from previous runs
 try:
@@ -122,19 +122,20 @@ if __name__ == "__main__":
     siamese_net = build_siamese_model(num_base_filters=NUM_BASE_FILTERS, alpha_leaky_relu=ALPHA_LEAKY_RELU, rg=REGULARIZATION_PARAM, num_elements_of_vector=NUM_DENSE)
     rms = RMSprop(LEARNING_RATE)
     siamese_net.compile(loss='binary_crossentropy', optimizer=rms, metrics=['mse'])
+    siamese_net.load_weights('model.h5')
+
 
     X_train, y_train, X_test, y_test = prepare_data()
 
     total_binary_loss = []
     total_mse_loss = []
-    test_accuracy = []
+    total_test_accuracy = []
     for epoch in range(MAX_EPOCHS):
         print '----------------  Epoch {}  ----------------'.format(epoch)
         indices_for_training = range(X_train.shape[0])
         for iteration in tqdm(range(MAX_ITERATIONS)):
             if len(indices_for_training) > BATCH_SIZE:
-                X_batch, y_batch, indices_for_training  = prepare_batch(X_train, y_train, indices_for_training)
-
+                X_batch, y_batch, indices_for_training = prepare_batch(X_train, y_train, indices_for_training)
                 binary_loss, mse = siamese_net.train_on_batch([X_batch[:,0], X_batch[:,1]], y_batch)
                 total_binary_loss.extend([binary_loss])
                 total_mse_loss.extend([total_mse_loss])
@@ -146,28 +147,26 @@ if __name__ == "__main__":
         siamese_net.save_weights('model.h5')
 
         print 'Testing Network'
-        number_correct = 0
+        print 'Number of Test Cases: {}'.format(X_test.shape[0])
+        img_test_batch = []
+        img_class_batch = []
         for i in range(X_test.shape[0]):
             img_test = X_test[i].astype('float32').reshape([IMG_HEIGHT, IMG_WIDTH, 1]) / 255.
-            final_output = [0] * np.unique(y_train).shape[0]
-            for j in range(np.unique(y_train).shape[0]):
-                indices = np.where(y_train == j)[0]
-                first_index = indices[0]
-                input_net = [[img_test], [X_train[first_index].astype('float32').reshape([IMG_HEIGHT, IMG_WIDTH, 1]) / 255.]]
-                model_prediction = siamese_net.predict(input_net)[0][0]
-                final_output[j] += round(model_prediction, 3)
+            indices = np.where(y_train == y_test[i])[0]
+            first_index = indices[0]
+            img_class = X_train[i].astype('float32').reshape([IMG_HEIGHT, IMG_WIDTH, 1]) / 255.
+            img_class_batch.append(img_class)
+            img_test_batch.append(img_test)
 
+        model_prediction = siamese_net.predict({'input_2':np.array(img_test_batch), 'input_3':np.array(img_class_batch)})
 
-            print('Next Test Case ...')
-            if final_output.index(min(final_output)) == y_test[i]:
-                number_correct += 1
+        total_test_accuracy.extend([np.mean(np.array(model_prediction))])
 
-        test_accuracy.extend([round(number_correct/float(X_test.shape[0]), 2)])
-        plt.plot(total_binary_loss)
+        plt.plot(total_test_accuracy)
         plt.title('Test Accuracy')
         plt.savefig('test_accuracy.png')
         plt.close()
-        print 'Test Accuracy is: ' + str(round(number_correct/float(X_test.shape[0]), 2))
+        print 'Test Accuracy is: ' + str(np.mean(np.array(model_prediction)))
 
 
 
